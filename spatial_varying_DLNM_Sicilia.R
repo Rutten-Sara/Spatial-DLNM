@@ -206,7 +206,7 @@ results_af <- results_af %>% na.omit()
 
 
 # Plot results
-pdf("Figures/af_caterpillar.pdf", width = 12, height = 15)
+pdf("af_caterpillar.pdf", width = 12, height = 15)
 ggplot(results_af, aes(x = fit, y = ID)) +
   geom_errorbarh(aes(xmin = lower, xmax = upper, color = sig),
                  height = 0) +
@@ -230,7 +230,7 @@ ggplot(results_af, aes(x = fit, y = ID)) +
 dev.off()
 
 
-pdf("Figures/af_Sicily.pdf", height = 5, width = 8)
+pdf("af_Sicily.pdf", height = 5, width = 8)
 tm_shape(map_af) +
   tm_polygons("af", 
               title = "af", 
@@ -292,7 +292,7 @@ pred_overall_unlist = Map(function(model, type_label) {
 }, pred_overall, type_names) %>%
   do.call(rbind, .)
 
-pdf("Figures/all_RR_Sicily.pdf", height = 4, width = 6)
+pdf("all_RR_Sicily.pdf", height = 4, width = 6)
 ggplot() +
   geom_line(data = all_RR %>% filter(type=="typeIV"), aes(x = at_x, y = RR, group = area), col = 'grey')+
   geom_line(data = pred_overall_unlist %>% filter(type=="typeIV"), aes(x = at_x, y =RR))+
@@ -313,7 +313,7 @@ map_RR_long <- map %>%
   pivot_longer(cols = c("typeI", "typeII", "typeIII", "typeIV"),
                names_to = "type", values_to = "RR")
 
-pdf("Figures/Sicily_28.pdf")
+pdf("Sicily_28.pdf")
 tm_shape(map) +
   tm_polygons("typeIV", 
               title = "RR at 28 degrees", 
@@ -350,7 +350,7 @@ pred_location = predRR(model_laplace[[4]], at_x_quantile, cen = 20, L = L, by = 
                        ID = c( "82053", "85004", "88009"), CI = T) #predict RRs at three locations
 
 
-pdf("Figures/overall_RR_two.pdf", width = 6, height = 4)
+pdf("overall_RR_two.pdf", width = 6, height = 4)
 library(ggplot2)
 col <- c("darkgoldenrod3", "aquamarine3","darkred")
 parold <- par(no.readonly=T)
@@ -383,7 +383,7 @@ par(parold)
 dev.off()
 
 
-pdf("Figures/lag_RR_two.pdf", width = 6, height = 4)
+pdf("lag_RR_two.pdf", width = 6, height = 4)
 pred_location_lag = predRR(model_laplace[[4]], 28, cen = 20, L = L, by = 0.5,
                        ID = c( "82053", "85004", "88009"), CI = T) #predict lag-specific in three regions
 
@@ -469,7 +469,7 @@ map_prob_long <- map_prob %>%
                names_to = "type", values_to = "prob")
 
 # Plot with shared scale
-pdf("Figures/top_perc.pdf", width = 3, height= 5)
+pdf("top_perc.pdf", width = 3, height= 5)
 tm_shape(map_prob_long) +
   tm_polygons("prob", 
               title = "P(top ...%)", 
