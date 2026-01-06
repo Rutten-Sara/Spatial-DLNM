@@ -325,8 +325,6 @@ DLNM_Laplace_pois <- function(model,
     vx_spat <- attributes(crossbasis_spat)$df[1]
     vl_spat <- attributes(crossbasis_spat)$df[2]
     
-    #L_pen <- 1 / (1 + exp(-0.05 * (median(y, na.rm=T) - 100)))
-    #init_pen = 5 *(1-L_pen)
     init_pen = 3
 
     # Penalty for exposure
@@ -436,8 +434,7 @@ DLNM_Laplace_pois <- function(model,
         }
       }
       Rn2 <- Matrix::Matrix(Rn2, sparse = TRUE)
-      
-      #Sv <- function(v) exp(v[length(v)])*Rn2
+
       
       if(!is.null(pen_crossbasis)){
         Pv2 <- function(v) exp(v[length(v)-2])*(Px_spat%x%Matrix::Diagonal(n = vl_spat, x = NULL)%x%Rn2) +
@@ -629,13 +626,7 @@ DLNM_Laplace_pois <- function(model,
     value <- Matrix::t(X)%*%(y-Cvxi) - Qv%*%xi
     as.numeric(value)
   }
-  
-  #Hess.logpxi <- function(Qv, Cvxi, Xv){
-  #  W_xi = Matrix::Diagonal(x = Cvxi)
-  #  value <- -Matrix::t(Xv)%*%W_xi%*%Xv - Qv 
-  #  value
-  #}
-  
+
 
   
   # Laplace approximation to conditional posterior of xi
@@ -738,11 +729,8 @@ DLNM_Laplace_pois <- function(model,
     v_init = c(rep(1,3),v.rand, v.rand_spat)
   }
 
-  #if(approx == F){
   Qv_init <- Qv(v_init)
-  # }else{
-  #  Qv_init <- Qv_approx(v_init)
-  #}
+
 
   xi_init <- NR_xi(xi0 = xi0_init, Qv0 = Qv_init)
   Cvxi_temp <- Cv_xi(xi_init, X)
@@ -777,8 +765,7 @@ DLNM_Laplace_pois <- function(model,
        
       result <- tryCatch({
         Qv_est <- Qv(v)
-        #a1 <- -0.5*determinant_Pv(XWX+as(Matrix::Diagonal(x = Matrix::diag(Qv_est)),"generalMatrix"))
-        
+         
         a1 <- -0.5*approx_logdet(Qv_est,XWX)
 
   
@@ -803,17 +790,10 @@ DLNM_Laplace_pois <- function(model,
                   method="Nelder-Mead", 
                   control = list(fnscale = -1, reltol = 1e-18))$par
 
-  #v_init = v_mode
-  #xi0_init = xi_init
-  # }
-  
   
   # Estimate of xi (regression parameter)
-  #  if(approx == F){
-    Qv_mode <- Qv(v_mode)
-    # }else{
-    #   Qv_mode <- Qv_approx(v_mode)
-    # }
+  Qv_mode <- Qv(v_mode)
+
 
   xi_mode <- NR_xi(xi0 = xi_init, Qv0 = Qv_mode)
   }else{

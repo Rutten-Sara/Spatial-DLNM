@@ -328,9 +328,7 @@ DLNM_Laplace_NB <- function(model,
     }
     vx_spat <- attributes(crossbasis_spat)$df[1]
     vl_spat <- attributes(crossbasis_spat)$df[2]
-    
-    #L_pen <- 1 / (1 + exp(-0.05 * (median(y, na.rm=T) - 100)))
-    #init_pen = 5 *(1-L_pen)
+
     init_pen = 5
     
     # Penalty for exposure
@@ -351,7 +349,6 @@ DLNM_Laplace_NB <- function(model,
       
       # Additional penalty for delay (force lag effect going to zero)
       Dl_add_spat <- diag((0:(vl_spat-1))^2)
-      #Dl_add <- diag(rep(0:1,c(6,4)))
       Pl_add_spat <- Dl_add_spat + diag(1e-12, vl_spat)
     }
     
@@ -440,8 +437,7 @@ DLNM_Laplace_NB <- function(model,
         }
       }
       Rn2 <- Matrix::Matrix(Rn2, sparse = TRUE)
-      
-      #Sv <- function(v) exp(v[length(v)])*Rn2
+
       
       if(!is.null(pen_crossbasis)){
         Pv2 <- function(v) exp(v[length(v)-2])*(Px_spat%x%Matrix::Diagonal(n = vl_spat, x = NULL)%x%Rn2) +
@@ -779,11 +775,9 @@ DLNM_Laplace_NB <- function(model,
     v_init = c(0,rep(1,3),v.rand, v.rand_spat)
   }
 
-  #if(approx == F){
+
   Qv_init <- Qv(v_init)
-  # }else{
-  #  Qv_init <- Qv_approx(v_init)
-  #}
+
 
   xi_init <- NR_xi(xi0 = xi0_init, Qv0 = Qv_init, v0 = v_init)
   
@@ -813,9 +807,6 @@ DLNM_Laplace_NB <- function(model,
       
       
       # Determinant of posterior hessian
-      #W_v_opt = as(-(Mnb_v%*%Vnb-Wnb),"generalMatrix")
-      #XWX_est = XWX_func_NB(W_v_opt, X)
-      
       W_v_opt = Matrix::diag(-(Mnb_v%*%Vnb-Wnb))
       XWX_est = XWX_func(W_v_opt, as(Matrix::Diagonal(x = Matrix::diag(X)), "generalMatrix"))
       
@@ -826,7 +817,6 @@ DLNM_Laplace_NB <- function(model,
       a4 <- 0.5 * sum((xi_init * Qv_est) %*% xi_init)
       
       # Gamma prior overdispersion
-      #a5 <- (0.5 * nu) * vdisp - ((0.5 * nu) + a.disp) *  log(0.5*(nu * exp(vdisp)) + b.disp)
       a5 <- a.disp*vdisp - b.disp*exp(vdisp)
       
       as.numeric(value <- a1+a2-a4+a5+logpv.fixed(v)+logpv.rand(v) + logpv.rand_spat(v))
@@ -858,9 +848,6 @@ DLNM_Laplace_NB <- function(model,
         
         
         # Determinant of posterior hessian
-        #W_v_opt = as(-(Mnb_v%*%Vnb-Wnb),"generalMatrix")
-        #XWX_est = XWX_func_NB(W_v_opt, X)
-        
         W_v_opt = Matrix::diag(-(Mnb_v%*%Vnb-Wnb))
         XWX_est = XWX_func(W_v_opt, as(Matrix::Diagonal(x = Matrix::diag(X)), "generalMatrix"))
         
@@ -871,7 +858,6 @@ DLNM_Laplace_NB <- function(model,
         a4 <- 0.5 * sum((xi_init * Qv_est) %*% xi_init)
         
         # Gamma prior overdispersion
-        #a5 <- (0.5 * nu) * vdisp - ((0.5 * nu) + a.disp) *  log(0.5*(nu * exp(vdisp)) + b.disp)
         a5 <- a.disp*vdisp - b.disp*exp(vdisp)
         
         as.numeric(value <- a1+a2-a4+a5+logpv.fixed(v)+logpv.rand(v) + logpv.rand_spat(v))
@@ -892,6 +878,7 @@ DLNM_Laplace_NB <- function(model,
   
 
   Qv_mode <- Qv(v_mode)
+
 
   xi_mode <- NR_xi(xi0 = xi_init, Qv0 = Qv_mode, v0 = v_mode)
   
