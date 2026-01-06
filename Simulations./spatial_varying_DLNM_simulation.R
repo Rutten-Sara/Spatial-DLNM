@@ -21,8 +21,8 @@ source('../functions/help_functions.R')
 
 # Load data
 
-load("data/daily_data.RData")
-shapefile_bcn <- read_sf("data/shapefile_bcn.shp")
+load("../data/daily_data.RData")
+shapefile_bcn <- read_sf("../data/shapefile_bcn.shp")
 data$year <- year(data$date)
 
 
@@ -727,4 +727,5 @@ tm_shape(map_RR_long) +
               style = "cont", 
               legend.show = TRUE) +
   tm_facets(by = "type", free.scales = FALSE, ncol = 3)
+
 
