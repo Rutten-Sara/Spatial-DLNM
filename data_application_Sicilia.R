@@ -167,6 +167,7 @@ c(-sum(log(model_laplace[[1]]$CPO)), -sum(log(model_laplace[[2]]$CPO)), -sum(log
 ############################ Attributable fraction #############################
 data2021 <- datafull%>% filter(year==2021) # focuss on 2021
 group_af = factor(data2021$COD_PROVCOM)
+at_x_quantile =  seq(10,28, by = 0.5)
 
 # estimated attributable fraction (sim = T and sim = F)
 est_af = attrdl_Laplace(data2021$temperature,model_laplace[[4]],data2021$dtot,
@@ -428,7 +429,7 @@ cl <- makeCluster(n_cores)
 registerDoParallel(cl)
 
 L=8
-at_x_quantile =  seq(10,28, by = 0.5)
+
 
 betas_typeIV = simulate_from_precision_correct(model_laplace[[4]]$Prec, nsim = 500) #Simulate from posterior
 
@@ -480,3 +481,4 @@ tm_shape(map_prob_long) +
               breaks = seq(0, 1, length.out = 11) ) +
   tm_facets(by = "type", free.scales = FALSE, ncol= 1)
 dev.off()
+
