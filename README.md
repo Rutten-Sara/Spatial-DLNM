@@ -1,5 +1,5 @@
 # Spatially varying distributed lag non-linear models using Laplacian P-splines
-Sara Rutten, Thomas Neyens, Elisa Duarte and Christel Faes
+Sara Rutten, Thomas Neyens, Elisa Duarte, Antonio Gasparrini and Christel Faes
 
 ## About this repository
 This repository contains the Rcodes used to generate the results from the paper "Spatially varying distributed lag non-linear models using Laplacian P-splines".
