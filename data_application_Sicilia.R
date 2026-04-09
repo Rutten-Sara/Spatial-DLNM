@@ -35,7 +35,7 @@ datafull <- datafull %>%
   ungroup() %>%
   dplyr::select(-geometry) %>%
   mutate(date = as.Date(date, format = "%Y-%m-%d"))%>%
-  mutate(dow = wday(date))
+  mutate(dow = weekdays(date))
 
 
 
