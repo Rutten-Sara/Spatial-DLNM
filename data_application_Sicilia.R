@@ -415,7 +415,7 @@ legend("top", c("Palermo", "Caltanissetta"), lty=1, lwd=1.5, col=col, bty="n",
 
 par(parold)
 
-
+dev.off()
 
 
 # Probability of belonging to top 10%, top 25%
