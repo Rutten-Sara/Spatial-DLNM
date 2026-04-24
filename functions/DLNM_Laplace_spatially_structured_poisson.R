@@ -245,7 +245,7 @@ DLNM_Laplace_pois <- function(model,
       Rn <- Matrix::Matrix(Rn, sparse = TRUE)
       
       Gv <- function(v) Matrix::bdiag(exp(v[pen_dlnm+1])*Rn,
-                                      Matrix::Diagonal(n = q.rand, x = exp(v[pen_dlnm+1])))
+                                      Matrix::Diagonal(n = q.rand, x = exp(v[pen_dlnm+2])))
       logpv.rand <- function(v) sum(0.5 * (nu + q.rand) * v[(pen_dlnm+1):(pen_dlnm+2)]) - 
         sum((0.5*nu + a)*log(b + 0.5*nu*exp( v[(pen_dlnm+1):(pen_dlnm+2)])))
       Z.rand <- cbind(Z.rand, Z.rand)
