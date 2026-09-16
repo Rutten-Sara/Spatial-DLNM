@@ -6,7 +6,7 @@ library(tidyverse) ; library(readxl); library(Rcpp); library(sf)
 library(spdep); library(raster); library(exactextractr)
 library(lubridate); library(pROC)
 library(dlnm); library(INLA)
-library(tsModel); library(mixmeta)
+library(tsModel); library(mixmeta); library(mgcv)
 
 
 source('../functions/DLNM_Laplace_spatially_structured.R')
@@ -98,19 +98,24 @@ coefficients_all = lapply(1:5, function(i) matrix(NA, nrow = dim(shapefile_bcn)[
 coef_new <- c(0.2118881,0.1406585,-0.0982663,0.0153671,-0.0006265)
 
 # settings
-setting = 3
+setting = 5
 parameters_setting = list("setting 1" = list(0.95,"small"),
                           "setting 2" = list(0.95,"large"),
-                          "setting 3" = list(0.05,"large"))
+                          "setting 3" = list(0.05,"large"),
+                          "setting 4" = "common",
+                          "setting 5" = "individual")
 
 
 # Simulate surface
-if(setting != 1){
-  source("../functions Simulation/sim_coefficients.R")
-}else{
+if(setting == 1){
   source("../functions Simulation/sim_coefficients_small.R")
+}else if (setting == 5){
+   source("../functions Simulation/sim_coefficients_ind.R")
+  }else{
+    source("../functions Simulation/sim_coefficients.R")
 }
 
+if(!setting %in% c(4,5)){
 type_cor = "CAR"
 surface_sim = simulate_coefficients(dim(shapefile_bcn)[1], coef_new,
                                     shapefile_bcn, scenario = type_cor, 
@@ -120,7 +125,18 @@ surface_sim = simulate_coefficients(dim(shapefile_bcn)[1], coef_new,
 
 coefficients_all = surface_sim$coefficients
 denominator_all = surface_sim$denominator
-
+}else if (setting == 4){
+  type_cor = "CAR"
+  coefficients_all <- lapply(1:5, function(i) matrix(coef_new[i], nrow = nrow(shapefile_bcn), ncol = 1))
+  denominator_all <- rep(4, nrow(shapefile_bcn))
+} else{
+  type_cor = "CAR"
+  surface_sim = simulate_coefficients(dim(shapefile_bcn)[1], coef_new,
+                                      shapefile_bcn, 
+                                      rho = 0.95, seed=128) 
+  coefficients_all = surface_sim$coefficients
+  denominator_all = surface_sim$denominator
+}
 
 # True effect
 trueeff_sim = list()
@@ -142,49 +158,49 @@ true_line = as.data.frame(trueeff_allsim_mat) %>%
   pivot_longer(cols = -area, names_to = "temperature", values_to = "RR") %>%
   mutate(RR = exp(RR), temperature = as.numeric(temperature))
 
-ggplot(data = true_line, aes(x = temperature, y = RR, group = area)) +
-  geom_line(alpha = 0.4) + ylim(c(0.9,3.2)) +theme_bw() + xlab("exposure") + 
-  ggtitle("Setting 3")
+plot5 <- ggplot(data = true_line, aes(x = temperature, y = RR, group = area)) +
+  geom_line(alpha = 0.4)+ ylim(c(0.4,3.2))  +theme_bw() + xlab("exposure") + 
+  ggtitle("Setting 5")
 
 
-# setting_3_true <- list(trueeff_sim[[42]],trueeff_sim[[27]],trueeff_sim[[10]])
+# setting_5_true <- list(trueeff_sim[[42]],trueeff_sim[[27]],trueeff_sim[[10]])
 # Combine panels
-#all_panels <- list(setting_1_true[[1]], setting_2_true[[1]], setting_3_true[[1]],
-#                   setting_1_true[[2]], setting_2_true[[2]], setting_3_true[[2]],
-#                  setting_1_true[[3]], setting_2_true[[3]], setting_3_true[[3]])
+#all_panels <- list(setting_1_true[[1]], setting_2_true[[1]], setting_3_true[[1]], setting_4_true[[1]], setting_5_true[[1]],
+#                   setting_1_true[[2]], setting_2_true[[2]], setting_3_true[[2]], setting_4_true[[2]], setting_5_true[[2]],
+#                  setting_1_true[[3]], setting_2_true[[3]], setting_3_true[[3]], setting_4_true[[3]], setting_5_true[[3]])
 
 # Column and row labels
-#col_names <- c("Setting 1", "Setting 2", "Setting 3", rep("",6))
+#col_names <- c("Setting 1", "Setting 2", "Setting 3", "Setting 4", "Setting 5", rep("",8))
 #library(plot3D)
 
-#pdf("Figures/simulation_lag.pdf", height = 10, width = 10)
+#pdf("simulation_lag.pdf", height = 10, width = 15)
 
-#par(mfrow=c(3,3), mar=c(3,3,2,1)) 
-#for(i in 1:9){
+#par(mfrow=c(3,5), mar=c(3,3,2,1)) 
+#for(i in 1:15){
 
-#persp3D(
-#  x = seq(0,10,0.25),
-#  y = 0:8,
-#  z =all_panels[[i]],
-#  ticktype = "detailed",
-#  theta = 230,  # rotation along horizontal
-#  phi = 30,     # vertical viewing angle
-#  ltheta = 200,
-#  lphi = 30,
-#  xlab = "Exposure",
-#  ylab = "Lag",
-#  zlab = "log-RR",
-#  zlim = c(-0.10, 0.30),
-#  nticks = 4,
-#  cex.main = 2,
-#  shade = 0.75,
-#  r = sqrt(3),
-#  d = 5,
-#  cex.axis = 1.2,
-#  cex.lab = 1.5,
-#  border = NA,
-#  col = "steelblue",
-#  main = col_names[i]
+  #persp3D(
+  #x = seq(0,10,0.25),
+  #y = 0:8,
+  #z =all_panels[[i]],
+  #ticktype = "detailed",
+  #theta = 230,  # rotation along horizontal
+  #phi = 30,     # vertical viewing angle
+  #ltheta = 200,
+  #lphi = 30,
+  #xlab = "Exposure",
+  #ylab = "Lag",
+  #zlab = "log-RR",
+  #zlim = c(-0.10, 0.30),
+  #nticks = 4,
+  #cex.main = 2,
+  #shade = 0.75,
+  #r = sqrt(3),
+  #d = 5,
+  #cex.axis = 1.2,
+  #cex.lab = 1.5,
+  #border = NA,
+  #col = "steelblue",
+  #main = col_names[i]
 #)
 
 #}
@@ -198,19 +214,30 @@ map = shapefile_bcn
 map$RR_true = exp(RR_true)
 
 library(tmap)
-tm_shape(map) +
+
+#map$RR_class <- cut(
+#  map$RR_true,
+#  breaks = seq(0.6, 1.9, by = 0.2),
+#  include.lowest = TRUE
+#)
+
+
+map4 <- tm_shape(map) +
   tm_polygons("RR_true", palette = "BuRd", style = "cont", title="RR at 8.5",
-              legend.reverse = T) +
+              legend.reverse = T,
+              breaks = seq(0.6, 1.9, by = 0.2)) +
   tm_layout(legend.outside = TRUE, legend.outside.position = "bottom",
-            legend.frame = F, legend.na.show = F, title = "Setting 3")
-#pdf("Figures/simulation_overall_map.pdf")
-#tmap_arrange(map1, map2, map3, nrow = 1)
+            legend.frame = F, legend.na.show = F, title = "Setting 4")
+
+#p = tmap_arrange(map1, map2, map3, map4, map5, nrow = 2)
+
+#tmap_save(p, "simulation_overall_map2.svg", width = 10, height = 5)
 
 
 # Offset
 set.seed(29)
-offset_true = ceiling(rlnorm(n = 73, meanlog = log(12000), sdlog = 1.8)) #small
-#offset_true = ceiling(rlnorm(n = 73, meanlog = log(6e6), sdlog = 0.9)) #large
+#offset_true = ceiling(rlnorm(n = 73, meanlog = log(12000), sdlog = 1.8)) #small
+offset_true = ceiling(rlnorm(n = 73, meanlog = log(6e6), sdlog = 0.9)) #large
 map$offset = offset_true
 
 
@@ -236,27 +263,33 @@ knots_vl <- logknots(0:8, nk = 2)
 
 
 # Store results
-cov_RR <- rmse_RR <- bias_RR <- list("Type I" = matrix(0, nrow = 73, ncol = length(at_x)*(L+1)),
+cov_RR <- rmse_RR <- bias_RR <- length_RR <- list("Type I" = matrix(0, nrow = 73, ncol = length(at_x)*(L+1)),
                                      "Type II" = matrix(0, nrow = 73, ncol = length(at_x)*(L+1)),
                                      "Type III" = matrix(0, nrow = 73, ncol = length(at_x)*(L+1)),
                                      "Type IV" = matrix(0, nrow = 73, ncol = length(at_x)*(L+1)),
                                      "No interaction" = matrix(0, nrow = 73, ncol = length(at_x)*(L+1)),
-                                     "meta" = matrix(0, nrow = 73, ncol = length(at_x)*(L+1)))
+                                     "meta" = matrix(0, nrow = 73, ncol = length(at_x)*(L+1)),
+                                     "meta spatial" = matrix(0, nrow = 73, ncol = length(at_x)*(L+1)),
+                                     "individual" = matrix(0, nrow = 73, ncol = length(at_x)*(L+1)))
 
 cor_RR <-  list("Type I" = rep(0,length(at_x)*(L+1)),
                 "Type II" = rep(0,length(at_x)*(L+1)),
                 "Type III" = rep(0,length(at_x)*(L+1)),
                 "Type IV" = rep(0,length(at_x)*(L+1)),
                 "No interaction" = rep(0,length(at_x)*(L+1)),
-                "meta" = rep(0,length(at_x)*(L+1)))
+                "meta" = rep(0,length(at_x)*(L+1)),
+                "meta spatial" = rep(0,length(at_x)*(L+1)),
+                "individual" = rep(0,length(at_x)*(L+1)))
 
 
-cov_all <- rmse_all <- bias_all <- list("TypeI" = matrix(0, nrow = 73, ncol = length(at_x)),
+cov_all <- rmse_all <- bias_all <- length_all <- list("TypeI" = matrix(0, nrow = 73, ncol = length(at_x)),
                                         "Type II" = matrix(0, nrow = 73, ncol = length(at_x)),
                                         "Type III" = matrix(0, nrow = 73, ncol = length(at_x)),
                                         "Type IV" = matrix(0, nrow = 73, ncol = length(at_x)),
                                         "No interaction" = matrix(0, nrow = 73, ncol = length(at_x)),
-                                        "meta" = matrix(0, nrow = 73, ncol = length(at_x)))
+                                        "meta" = matrix(0, nrow = 73, ncol = length(at_x)),
+                                        "meta spatial" = matrix(0, nrow = 73, ncol = length(at_x)),
+                                        "individual" = matrix(0, nrow = 73, ncol = length(at_x)))
 
 
 AUC_all <- list("TypeI" = matrix(0, nrow = 2, ncol = length(at_x)-1),
@@ -264,14 +297,18 @@ AUC_all <- list("TypeI" = matrix(0, nrow = 2, ncol = length(at_x)-1),
                 "Type III" = matrix(0, nrow = 2, ncol = length(at_x)-1),
                 "Type IV" = matrix(0, nrow = 2, ncol = length(at_x)-1),
                 "No interaction" = matrix(0, nrow = 2, ncol = length(at_x)-1),
-                "meta" = matrix(0, nrow = 2, ncol = length(at_x)-1))
+                "meta" = matrix(0, nrow = 2, ncol = length(at_x)-1),
+                "meta spatial" = matrix(0, nrow = 2, ncol = length(at_x)-1),
+                "individual" = matrix(0, nrow = 2, ncol = length(at_x)-1))
 
 cor_all <-  list("Type I" = rep(0,length(at_x)),
                  "Type II" = rep(0,length(at_x)),
                  "Type III" = rep(0,length(at_x)),
                  "Type IV" = rep(0,length(at_x)),
                  "No interaction" = rep(0,length(at_x)),
-                 "meta" = rep(0,length(at_x)))
+                 "meta" = rep(0,length(at_x)),
+                 "meta spatial" = rep(0,length(at_x)),
+                 "individual" = rep(0,length(at_x)))
 
 
 predall_matrix <-  list("Type I" = matrix(0, nrow = 73, ncol = length(at_x)),
@@ -279,14 +316,18 @@ predall_matrix <-  list("Type I" = matrix(0, nrow = 73, ncol = length(at_x)),
                         "Type III" = matrix(0, nrow = 73, ncol = length(at_x)),
                         "Type IV" = matrix(0, nrow = 73, ncol = length(at_x)),
                         "No interaction" = matrix(0, nrow = 73, ncol = length(at_x)),
-                        "meta" = matrix(0, nrow = 73, ncol = length(at_x)))
+                        "meta" = matrix(0, nrow = 73, ncol = length(at_x)),
+                        "meta spatial" = matrix(0, nrow = 73, ncol = length(at_x)),
+                        "individual" = matrix(0, nrow = 73, ncol = length(at_x)))
 
 map_RR <-  list("Type I" = NULL,
                 "Type II" = NULL,
                 "Type III" = NULL,
                 "Type IV" = NULL,
-                "meta" = NULL)
-time <- rep(0,6)
+                "meta" = NULL,
+                "meta spatial" = NULL,
+                "individual" = NULL)
+time <- rep(0,8)
 DIC_percentage <- WAIC_percentage <- CPO_percentage <- rep(0,5)
 
 data$x = x
@@ -304,12 +345,17 @@ fit_mixmeta <- function(formula, S, methods = c("reml", "ml", "mm", "vc")) {
   }
   stop("All methods failed for this model")
 }
+lonlat <- data.frame(st_coordinates(st_transform(st_centroid(shapefile_bcn)),4326))
+names(lonlat) <- c("lon","lat")
+
+lonlat$lon_sc <- as.numeric(scale(lonlat$lon))
+lonlat$lat_sc <- as.numeric(scale(lonlat$lat))
 
 
 
 tot_sim = nsim
 
-which_fails <- rep(0,6)
+which_fails <- rep(0,7)
 
 for (i in 1:nsim){
   
@@ -424,6 +470,7 @@ for (i in 1:nsim){
   
   time_laplace[5] =  (proc.time()-mtime)[3]
   
+  print("LPS")
   
   # Fit meta analysis model
   unique_area = unique(data$region)
@@ -463,18 +510,25 @@ for (i in 1:nsim){
       
       
     }
-    
+    time_individual_meta = (proc.time() - mtime)[3]
     
     
     
     # Cumulative effect
+    mtime = proc.time()
+    mvall_spat <- fit_mixmeta(ymat~lonlat$lon_sc + lonlat$lat_sc +
+                                I(lonlat$lon_sc^2) +
+                                I(lonlat$lat_sc^2) +
+                                I(lonlat$lon_sc * lonlat$lat_sc),Sall)
+    time_meta_spat = (proc.time() - mtime)[3] + time_individual_meta
+    
+    mtime = proc.time()
     mvall <- fit_mixmeta(ymat~1,Sall)
-    
-    
-    
-    time_meta = (proc.time() - mtime)[3]
+    time_meta = (proc.time() - mtime)[3]+ time_individual_meta
     
     predall_meta <- blup.mixmeta(mvall,vcov=T)
+    predall_meta_spat <- blup.mixmeta(mvall_spat,vcov=T)
+    
     
   },error = function(e){
     which_fails[6]<<- which_fails[6]+1
@@ -484,6 +538,54 @@ for (i in 1:nsim){
   print("META")
 
   
+  # Fit individual
+  
+  tryCatch({
+    mtime = proc.time()
+    
+    # Penalty
+    
+    Dl_add <- diag((0:(vl_pen-1))^2)
+    cbbamPen <- cbPen(crossbasis_pen,addSlag=list(Dl_add))
+    
+    # Save data
+    ymat_ind <- matrix(NA,length(dlist),30,dimnames=list(unique_area,paste("b",seq(30),sep="")))
+    
+    Sall_ind <- vector("list",length(dlist))
+    names(Sall_ind) <- unique_area
+    
+
+    
+    for(k in seq(dlist)) {
+      
+      # LOAD
+      sub <- dlist[[k]]
+      
+      group_meta <- factor(sub$year)
+      
+      # DEFINE THE CROSS-BASES
+      cb_pen <- crossbasis(sub$x,lag=L,argvar=attributes(crossbasis_pen)$argvar,
+                       arglag=attributes(crossbasis_pen)$arglag, group = group_meta)
+      
+      
+      
+      # RUN THE FIRST-STAGE MODELS
+      mfirst_pen <- bam(y ~ cb_pen,family=poisson(), paraPen=list(cb_pen=cbbamPen),data = sub)
+      
+      ymat_ind[k,] <- coef(mfirst_pen)[-1]
+      Sall_ind[[k]] <- vcov(mfirst_pen)[-1,-1]
+      
+      
+    }
+    time_individual = (proc.time() - mtime)[3]
+    
+  },error = function(e){
+    which_fails[7]<<- which_fails[7]+1
+    succes_flags <<- F
+    cat("ERROR :",conditionMessage(e), "\n")})
+  
+  print("ind")
+    
   
   #If all models succeeded --> make predictions
   if(succes_flags){  
@@ -511,6 +613,8 @@ for (i in 1:nsim){
     cov_RR[[6]] = cov_RR[[6]] + (trueeff_sim_mat >= predvar_matrix_meta_lower &
                                    trueeff_sim_mat <= predvar_matrix_meta_upper)
     
+    length_RR[[6]] = length_RR[[6]] + (predvar_matrix_meta_upper - predvar_matrix_meta_lower)
+    
     cor_RR[[6]] = cor_RR[[6]] + suppressWarnings( as.numeric(mapply(cor, as.data.frame(trueeff_sim_mat), as.data.frame(predvar_matrix_meta))))
     rmse_RR[[6]] = rmse_RR[[6]] + (trueeff_sim_mat - predvar_matrix_meta)^2
     
@@ -519,6 +623,8 @@ for (i in 1:nsim){
     
     cov_all[[6]] <- cov_all[[6]] + (trueeff_allsim_mat >= predall_matrix_meta_lower &
                                       trueeff_allsim_mat <= predall_matrix_meta_upper)
+    
+    length_all[[6]] = length_all[[6]] + (predall_matrix_meta_upper - predall_matrix_meta_lower)
     
     cor_all[[6]] = cor_all[[6]] +  suppressWarnings( as.numeric(mapply(cor, as.data.frame(trueeff_allsim_mat), as.data.frame(predall_matrix_meta))))
     
@@ -530,6 +636,7 @@ for (i in 1:nsim){
     
     predall_matrix[[6]] = predall_matrix[[6]] + predall_matrix_meta
     
+    if(setting != 4){
     # Top 10% most risky areas
     for (at_AUC in 1:length(at_x)){
       if(at_x[at_AUC]<5){
@@ -555,6 +662,161 @@ for (i in 1:nsim){
       }
     }
     
+    }
+    
+    
+    
+    
+    # Predict meta spat
+    predvar_matrix_meta_spat = predvar_matrix_meta_spat_lower = predvar_matrix_meta_spat_upper = NULL
+    predall_matrix_meta_spat_lower = predall_matrix_meta_spat_upper =  NULL
+    predall_matrix_meta_spat =  matrix(0, nrow = 73, ncol = length(at_x))
+    
+    for(k in 1:dim(shapefile_bcn)[1]){
+      cpall_spat <- crosspred(crossbasis_unpen,coef=predall_meta_spat[[k]]$blup,vcov=predall_meta_spat[[k]]$vcov,
+                         model.link="log",by=1,at = at_x,cen=5)
+      
+      
+      predall_matrix_meta_spat[k,] <- predall_matrix_meta_spat[k,]+log(cpall_spat$allRRfit)
+      predall_matrix_meta_spat_lower <- rbind(predall_matrix_meta_spat_lower, log(cpall_spat$allRRlow))
+      predall_matrix_meta_spat_upper <- rbind(predall_matrix_meta_spat_upper, log(cpall_spat$allRRhigh))
+      
+      
+      
+      predvar_matrix_meta_spat <- rbind(predvar_matrix_meta_spat, as.numeric(cpall_spat$matfit))
+      predvar_matrix_meta_spat_lower <- rbind(predvar_matrix_meta_spat_lower, log(as.numeric(cpall_spat$matRRlow)))
+      predvar_matrix_meta_spat_upper <-rbind(predvar_matrix_meta_spat_upper, log(as.numeric(cpall_spat$matRRhigh)))
+      
+    }
+    cov_RR[[7]] = cov_RR[[7]] + (trueeff_sim_mat >= predvar_matrix_meta_spat_lower &
+                                   trueeff_sim_mat <= predvar_matrix_meta_spat_upper)
+    
+    length_RR[[7]] = length_RR[[7]] + (predvar_matrix_meta_spat_upper - predvar_matrix_meta_spat_lower)
+    
+    cor_RR[[7]] = cor_RR[[7]] + suppressWarnings( as.numeric(mapply(cor, as.data.frame(trueeff_sim_mat), as.data.frame(predvar_matrix_meta_spat))))
+    rmse_RR[[7]] = rmse_RR[[7]] + (trueeff_sim_mat - predvar_matrix_meta_spat)^2
+    
+    bias_RR[[7]] = bias_RR[[7]] + (trueeff_sim_mat - predvar_matrix_meta_spat)
+    
+    
+    cov_all[[7]] <- cov_all[[7]] + (trueeff_allsim_mat >= predall_matrix_meta_spat_lower &
+                                      trueeff_allsim_mat <= predall_matrix_meta_spat_upper)
+    
+    length_all[[7]] = length_all[[7]] + (predall_matrix_meta_spat_upper - predall_matrix_meta_spat_lower)
+    
+    cor_all[[7]] = cor_all[[7]] +  suppressWarnings( as.numeric(mapply(cor, as.data.frame(trueeff_allsim_mat), as.data.frame(predall_matrix_meta_spat))))
+    
+    rmse_all[[7]] <- rmse_all[[7]] + (trueeff_allsim_mat - predall_matrix_meta_spat)^2
+    
+    bias_all[[7]] <- bias_all[[7]] + (trueeff_allsim_mat - predall_matrix_meta_spat)
+    
+    time[7] = time[7] + time_meta_spat
+    
+    predall_matrix[[7]] = predall_matrix[[7]] + predall_matrix_meta_spat
+    
+    if(setting != 4){
+      # Top 10% most risky areas
+      for (at_AUC in 1:length(at_x)){
+        if(at_x[at_AUC]<5){
+          thr <- quantile(trueeff_allsim_mat[,at_AUC], 0.75)
+          true_flag <- as.integer(trueeff_allsim_mat[,at_AUC]>=thr)
+          
+          AUC_all[[7]][1,at_AUC] = AUC_all[[7]][1,at_AUC]+suppressMessages(invisible(auc(roc(true_flag, predall_matrix_meta_spat[,at_AUC]))))
+          
+          thr <- quantile(trueeff_allsim_mat[,at_AUC], 0.90)
+          true_flag <- as.integer(trueeff_allsim_mat[,at_AUC]>=thr)
+          
+          AUC_all[[7]][2,at_AUC] = AUC_all[[7]][2,at_AUC]+suppressMessages(invisible(auc(roc(true_flag, predall_matrix_meta_spat[,at_AUC]))))
+        } else if(at_x[at_AUC]>5){
+          thr <- quantile(trueeff_allsim_mat[,at_AUC], 0.75)
+          true_flag <- as.integer(trueeff_allsim_mat[,at_AUC]>=thr)
+          
+          AUC_all[[7]][1,at_AUC-1] = AUC_all[[7]][1,at_AUC-1]+suppressMessages(invisible(auc(roc(true_flag,predall_matrix_meta_spat[,at_AUC]))))
+          
+          thr <- quantile(trueeff_allsim_mat[,at_AUC], 0.90)
+          true_flag <- as.integer(trueeff_allsim_mat[,at_AUC]>=thr)
+          
+          AUC_all[[7]][2,at_AUC-1] = AUC_all[[7]][2,at_AUC-1]+suppressMessages(invisible(auc(roc(true_flag, predall_matrix_meta_spat[,at_AUC]))))
+        }
+      }
+      
+    }
+    
+    
+    # Predict individual models
+    predvar_matrix_ind = predvar_matrix_ind_lower = predvar_matrix_ind_upper = NULL
+    predall_matrix_ind_lower = predall_matrix_ind_upper =  NULL
+    predall_matrix_ind =  matrix(0, nrow = 73, ncol = length(at_x))
+    
+    for(k in 1:dim(shapefile_bcn)[1]){
+      cpall_ind <- crosspred(crossbasis_pen,coef=ymat_ind[k,],vcov=Sall_ind[[k]],
+                         model.link="log",by=1,at = at_x,cen=5)
+      
+      
+      predall_matrix_ind[k,] <- predall_matrix_ind[k,]+log(cpall_ind$allRRfit)
+      predall_matrix_ind_lower <- rbind(predall_matrix_ind_lower, log(cpall_ind$allRRlow))
+      predall_matrix_ind_upper <- rbind(predall_matrix_ind_upper, log(cpall_ind$allRRhigh))
+      
+      
+      
+      predvar_matrix_ind <- rbind(predvar_matrix_ind, as.numeric(cpall_ind$matfit))
+      predvar_matrix_ind_lower <- rbind(predvar_matrix_ind_lower, log(as.numeric(cpall_ind$matRRlow)))
+      predvar_matrix_ind_upper <-rbind(predvar_matrix_ind_upper, log(as.numeric(cpall_ind$matRRhigh)))
+      
+    }
+    cov_RR[[8]] = cov_RR[[8]] + (trueeff_sim_mat >= predvar_matrix_ind_lower &
+                                   trueeff_sim_mat <= predvar_matrix_ind_upper)
+    
+    length_RR[[8]] = length_RR[[8]] + (predvar_matrix_ind_upper - predvar_matrix_ind_lower)
+    
+    cor_RR[[8]] = cor_RR[[8]] + suppressWarnings( as.numeric(mapply(cor, as.data.frame(trueeff_sim_mat), as.data.frame(predvar_matrix_ind))))
+    rmse_RR[[8]] = rmse_RR[[8]] + (trueeff_sim_mat - predvar_matrix_ind)^2
+    
+    bias_RR[[8]] = bias_RR[[8]] + (trueeff_sim_mat - predvar_matrix_ind)
+    
+    
+    cov_all[[8]] <- cov_all[[8]] + (trueeff_allsim_mat >= predall_matrix_ind_lower &
+                                      trueeff_allsim_mat <= predall_matrix_ind_upper)
+    
+    length_all[[8]] = length_all[[8]] + (predall_matrix_ind_upper - predall_matrix_ind_lower)
+    
+    cor_all[[8]] = cor_all[[8]] +  suppressWarnings( as.numeric(mapply(cor, as.data.frame(trueeff_allsim_mat), as.data.frame(predall_matrix_ind))))
+    
+    rmse_all[[8]] <- rmse_all[[8]] + (trueeff_allsim_mat - predall_matrix_ind)^2
+    
+    bias_all[[8]] <- bias_all[[8]] + (trueeff_allsim_mat - predall_matrix_ind)
+    
+    time[8] = time[8] + time_individual
+    
+    predall_matrix[[8]] = predall_matrix[[8]] + predall_matrix_ind
+    
+    if(setting != 4){
+      # Top 10% most risky areas
+      for (at_AUC in 1:length(at_x)){
+        if(at_x[at_AUC]<5){
+          thr <- quantile(trueeff_allsim_mat[,at_AUC], 0.75)
+          true_flag <- as.integer(trueeff_allsim_mat[,at_AUC]>=thr)
+          
+          AUC_all[[8]][1,at_AUC] = AUC_all[[8]][1,at_AUC]+suppressMessages(invisible(auc(roc(true_flag, predall_matrix_ind[,at_AUC]))))
+          
+          thr <- quantile(trueeff_allsim_mat[,at_AUC], 0.90)
+          true_flag <- as.integer(trueeff_allsim_mat[,at_AUC]>=thr)
+          
+          AUC_all[[8]][2,at_AUC] = AUC_all[[8]][2,at_AUC]+suppressMessages(invisible(auc(roc(true_flag, predall_matrix_ind[,at_AUC]))))
+        } else if(at_x[at_AUC]>5){
+          thr <- quantile(trueeff_allsim_mat[,at_AUC], 0.75)
+          true_flag <- as.integer(trueeff_allsim_mat[,at_AUC]>=thr)
+          
+          AUC_all[[8]][1,at_AUC-1] = AUC_all[[8]][1,at_AUC-1]+suppressMessages(invisible(auc(roc(true_flag,predall_matrix_ind[,at_AUC]))))
+          
+          thr <- quantile(trueeff_allsim_mat[,at_AUC], 0.90)
+          true_flag <- as.integer(trueeff_allsim_mat[,at_AUC]>=thr)
+          
+          AUC_all[[8]][2,at_AUC-1] = AUC_all[[8]][2,at_AUC-1]+suppressMessages(invisible(auc(roc(true_flag, predall_matrix_ind[,at_AUC]))))
+        }
+      }
+      
+    }
     
     
     
@@ -588,6 +850,8 @@ for (i in 1:nsim){
       cov_RR[[c]] = cov_RR[[c]] + (trueeff_sim_mat >= predvar_matrix_lower &
                                      trueeff_sim_mat <= predvar_matrix_upper)
       
+      length_RR[[c]] = length_RR[[c]] + (predvar_matrix_upper - predvar_matrix_lower)
+      
       cor_RR[[c]] = cor_RR[[c]] + suppressWarnings( as.numeric(mapply(cor, as.data.frame(trueeff_sim_mat), as.data.frame(predvar_matrix))))
       
       
@@ -599,6 +863,8 @@ for (i in 1:nsim){
       cov_all[[c]]<- cov_all[[c]] + (trueeff_allsim_mat >= predall_matrix_lower &
                                        trueeff_allsim_mat <= predall_matrix_upper)
       
+      length_all[[c]] = length_all[[c]] + (predall_matrix_upper - predall_matrix_lower)
+      
       cor_all[[c]] = cor_all[[c]] +  suppressWarnings( as.numeric(mapply(cor, as.data.frame(trueeff_allsim_mat), as.data.frame(predall_matrix_fit))))
       
       
@@ -608,6 +874,7 @@ for (i in 1:nsim){
       
       predall_matrix[[c]] <- predall_matrix[[c]] + predall_matrix_fit
       
+      if(setting != 4){
       for (at_AUC in 1:length(at_x)){
         if(at_x[at_AUC]<5){
           thr <- quantile(trueeff_allsim_mat[,at_AUC], 0.75)
@@ -631,7 +898,7 @@ for (i in 1:nsim){
           AUC_all[[c]][2,at_AUC-1] = AUC_all[[c]][2,at_AUC-1]+suppressMessages(invisible(auc(roc(true_flag, predall_matrix_fit[,at_AUC]))))
         }
       }
-      
+      }
       
       time[c] = time[c] + time_laplace[c]
       
@@ -682,6 +949,9 @@ unlist(lapply(cov_all, function(x) mean(x/tot_sim)))
 unlist(lapply(cov_RR, function(x) mean(x/tot_sim)))
 unlist(lapply(rmse_all, function(x) sqrt(mean(x/tot_sim))))
 unlist(lapply(rmse_RR, function(x) sqrt(mean(x/tot_sim))))
+unlist(lapply(length_all, function(x) mean(x/tot_sim)))
+unlist(lapply(length_RR, function(x) mean(x/tot_sim)))
+
 time/tot_sim
 
 DIC_percentage/tot_sim
@@ -711,11 +981,12 @@ map$typeIII = exp(predall_matrix[[3]][,35]/tot_sim)
 map$typeIV = exp(predall_matrix[[4]][,35]/tot_sim)
 map$No_inter = exp(predall_matrix[[5]][,35]/tot_sim)
 map$Meta = exp(predall_matrix[[6]][,35]/tot_sim)
-
+map$Meta_spat = exp(predall_matrix[[7]][,35]/tot_sim)
+map$Individual = exp(predall_matrix[[8]][,35]/tot_sim)
 
 map_RR_long <- map %>%
   pivot_longer(cols = c("typeI", "typeII", "typeIII", "typeIV", "No_inter",
-                        "Meta","true"),
+                        "Meta","Meta_spat", "Individual", "true"),
                names_to = "type", values_to = "RR")
 
 library(tmap)
@@ -727,5 +998,4 @@ tm_shape(map_RR_long) +
               style = "cont", 
               legend.show = TRUE) +
   tm_facets(by = "type", free.scales = FALSE, ncol = 3)
-
 
