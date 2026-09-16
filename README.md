@@ -39,3 +39,4 @@ The folder **functions Simulation** contains additional functions that are used 
 | crossbasis_INLA.R | Function to construct crossbasis for prediction with INLA model |
 | sim_coefficients.R | Function to simulate the region-specific exposure-lag-response surface (large heterogeneity) |
 | sim_coefficients_small.R | Function to simulate the region-specific exposure-lag-response surface (small heterogeneity) |
+| sim_coefficients_ind.R | Function to simulate the regions-specific exposure-lag-response curve (independent curves) |
