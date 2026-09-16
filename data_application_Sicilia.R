@@ -13,6 +13,7 @@ source('functions/DLNM_Laplace_spatially_structured_poisson.R')
 source('functions/predRR_spat.R')
 source('functions/help_functions.R')
 source('functions/af_Laplace.R')
+source('functions/PPP.R')
 
 ################################################################################
 # Read data
@@ -163,10 +164,167 @@ c(-sum(log(model_laplace[[1]]$CPO)), -sum(log(model_laplace[[2]]$CPO)), -sum(log
 
 
 ################################################################################
+# Death summary
+################################################################################
+sum(datafull$dtot, na.rm = T)
+
+death_by_municipality <- datafull %>%
+  group_by(COD_PROVCOM) %>%
+  summarise(
+    total_deaths = sum(dtot, na.rm = TRUE),
+    POP21 = mean(POP21, na.rm = T)
+  ) %>%
+  arrange(COD_PROVCOM)
+
+summary(death_by_municipality$total_deaths)
+
+summary(death_by_municipality$POP21)
+
+map_rate <- tuscanymap
+map_rate$rate <- death_by_municipality$total_deaths/death_by_municipality$POP21
+
+pdf("death_rate.pdf")
+tm_shape(map_rate) +
+  tm_polygons("rate", 
+              title = "Death rate", 
+              palette = "BuRd", 
+              legend.reverse = T,
+              style = "cont", 
+              legend.show = TRUE)
+dev.off()
+
+
+#########################################
+# Posterior predictive checks 
+#########################################
+
+Xpred <- predict_X(y_all ~  dow + ns(date, df = 7 * length(unique(datafull$year))),
+                   crossbasis = crossbasis_pen,
+                   ID = as.factor(datafull$COD_PROVCOM),
+                   data = datafull,
+                   offset = datafull$POP21,
+                   covar.ri = "Leroux",
+                   inter_pen = "Leroux",
+                   exposure = datafull$temperature,
+                   map = tuscanymap,
+                   connect = T)
+
+
+# Area specific posterior predictive coverage
+PPP(model_laplace[[4]], Xpred, threshold = quantile(datafull$temperature, 0.95, na.rm = T), 
+    area.specific = T,
+    spaghetti = F, histogram = F, greater = T)
+
+# Spaghetti plot
+PPP(model_laplace[[4]], Xpred, threshold = quantile(datafull$temperature, 0.95, na.rm = T), 
+    area.specific = F, spaghetti = T, histogram = F, greater = T, cont = F)
+
+# Moran's I plot
+res = PPP(model_laplace[[4]], Xpred,area.specific = F, spaghetti = F, histogram = F, resid = T)
+
+# Moran's I on hot days
+hot_days_ind <- datafull %>%
+  group_by(date) %>%
+  summarize(temp = mean(temperature)) %>%
+  ungroup() %>%
+  mutate(ind = temp >= quantile(temp, 0.95))
+hot_days_ind <- hot_days_ind[-c(1:8),]
+
+Irep <- res$Irep[,hot_days_ind$ind]
+Iobs <- res$Iobs[,hot_days_ind$ind]
+
+I_rep_lower <- apply(Irep, 2, quantile, probs = 0.025)
+I_rep_median <- apply(Irep, 2, median)
+I_rep_upper <- apply(Irep, 2, quantile, probs = 0.975)
+
+I_obs_median <- apply(Iobs, 2, median)
+I_obs_lower <- apply(Iobs, 2, quantile, probs = 0.025)
+I_obs_upper <- apply(Iobs, 2, quantile, probs = 0.975)
+
+
+plot_data <- data.frame(
+  time = 1:sum(hot_days_ind$ind),
+  obs = I_obs_median,
+  obs_lower = I_obs_lower,
+  obs_upper = I_obs_upper,
+  rep = I_rep_median,
+  rep_lower = I_rep_lower,
+  rep_upper = I_rep_upper
+)
+
+ggplot(plot_data, aes(x = time)) +
+  
+  geom_ribbon(
+    aes(
+      ymin = rep_lower,
+      ymax = rep_upper,
+      fill = "Posterior predictive"
+    ),
+    alpha = 0.25
+  ) +
+  
+  geom_ribbon(
+    aes(
+      ymin = obs_lower,
+      ymax = obs_upper,
+      fill = "Observed posterior"
+    ),
+    alpha = 0.40
+  ) +
+  
+  geom_line(
+    aes(
+      y = rep,
+      colour = "Posterior predictive"
+    ),
+    linewidth = 0.8,
+    linetype = "dashed"
+  ) +
+  
+  geom_line(
+    aes(
+      y = obs,
+      colour = "Observed posterior"
+    ),
+    linewidth = 0.9
+  ) +
+  
+  scale_fill_manual(
+    values = c(
+      "Observed posterior" = "#D55E00",
+      "Posterior predictive" = "#0072B2"
+    )
+  ) +
+  
+  scale_colour_manual(
+    values = c(
+      "Observed posterior" = "#D55E00",
+      "Posterior predictive" = "#0072B2"
+    )
+  ) +
+  
+  labs(
+    x = "Time",
+    y = "Moran's I",
+    fill = NULL,
+    colour = NULL
+  ) +
+  
+  theme_classic(base_size = 13) +
+  
+  theme(
+    legend.position = "top"
+  )
+
+
+
+
+################################################################################
 # Choose Type IV poisson as optimal model
 ############################ Attributable fraction #############################
 data2021 <- datafull%>% filter(year==2021) # focuss on 2021
 group_af = factor(data2021$COD_PROVCOM)
+
 at_x_quantile =  seq(10,28, by = 0.5)
 
 # estimated attributable fraction (sim = T and sim = F)
@@ -293,13 +451,67 @@ pred_overall_unlist = Map(function(model, type_label) {
 }, pred_overall, type_names) %>%
   do.call(rbind, .)
 
-pdf("all_RR_Sicily.pdf", height = 4, width = 6)
-ggplot() +
-  geom_line(data = all_RR %>% filter(type=="typeIV"), aes(x = at_x, y = RR, group = area), col = 'grey')+
-  geom_line(data = pred_overall_unlist %>% filter(type=="typeIV"), aes(x = at_x, y =RR))+
-  #facet_wrap( ~ type, ncol = 2)+
-  xlab("temperature") + theme_minimal()
+
+
+# All exposure-response curves (three highlighted)
+library(ggplot2)
+
+data_plot4 <- all_RR %>% filter(type=="typeIV")
+data_overall_plot4 <- pred_overall_unlist %>% filter(type=="typeIV")
+
+svg("all_RR_Sicily_highlighted.svg", height = 4, width = 6)
+parold <- par(no.readonly=T)
+par(mar=c(4,4,1,0.5), las=1, mgp=c(2.5,1,0))
+ind_plot <- seq(1,nrow(data_plot4), by = length(unique(data_plot4$area)))
+plot(data_plot4$at_x[ind_plot], data_plot4$RR[ind_plot], type = "l", ylim=c(0.9,1.6), ylab="RR", col="grey", lwd=1.5,
+     xlab="Temperature")
+
+areas <- unique(data_plot4$area)
+
+# Plot all grey areas first
+for (ar in 2:length(areas)) {
+  if (!areas[ar] %in% c(84020, 81020, 83020)) {
+    ind_plot <- seq(ar, nrow(data_plot4), by = length(areas))
+    lines(
+      data_plot4$at_x[ind_plot],
+      data_plot4$RR[ind_plot],
+      col = "grey",
+      lwd = 1.5
+    )
+  }
+}
+
+# Plot blue and red areas last
+for (ar in 2:length(areas)) {
+  if (areas[ar] == 84020) {
+    col <- "blue"
+  } else if (areas[ar] == 81020) {
+    col <- "red"
+  } else if (areas[ar] == 83020){
+    col <- "darkgreen"
+  }else {
+    next
+  }
+  
+  ind_plot <- seq(ar, nrow(data_plot4), by = length(areas))
+  
+  lines(
+    data_plot4$at_x[ind_plot],
+    data_plot4$RR[ind_plot],
+    col = col,
+    lwd = 2
+  )
+}
+
+
+abline(v = 20, lty = "dashed", col = "darkgrey")
+
+
+par(parold)
+
 dev.off()
+
+
 
 # Plot on map
 
@@ -314,11 +526,11 @@ map_RR_long <- map %>%
   pivot_longer(cols = c("typeI", "typeII", "typeIII", "typeIV"),
                names_to = "type", values_to = "RR")
 
-pdf("Sicily_28.pdf")
+svg("Sicily_28.svg")
 tm_shape(map) +
   tm_polygons("typeIV", 
               title = "RR at 28 degrees", 
-              palette = "BuRd", 
+              palette = "YlOrRd", 
               legend.reverse = T,
               style = "cont", 
               legend.show = TRUE) #+
@@ -346,12 +558,118 @@ tm_shape(map_temp) +
               legend.show = TRUE)
 
 
+# Extreme hot day scenario
+
+datafull %>% group_by(date) %>%
+  summarize(temp_mean = mean(temperature)) %>%
+  arrange(desc(temp_mean))
+
+
+temp_by_area_week <- datafull %>% # Filter data
+  filter(date >= "2021-08-11" & date <= "2021-08-19" ) %>%
+  arrange(COD_PROVCOM)
+
+map_temp_daily = tuscanymap %>%
+  full_join(temp_by_area_week, by = c("COD_PROVCOM"))%>%
+  mutate(date_label = factor(format(date, "%d %b %Y")))
+
+
+temp_by_area_week_lag <- datafull %>%
+  filter(date >= "2021-08-03" & date <= "2021-08-19" ) %>%
+  arrange(COD_PROVCOM)
+
+est_af_week = attrdl_Laplace(temp_by_area_week_lag$temperature,model_laplace[[4]],temp_by_area_week_lag$dtot,
+                        type="af",dir="back",tot=TRUE,cen = 20, sim=FALSE, nsim = 500,
+                        ID= factor(temp_by_area_week_lag$COD_PROVCOM)) # True AF
+
+temp_by_area_week_counter <- temp_by_area_week_lag  %>% # Counterfactual dataset
+  arrange(COD_PROVCOM, date) %>%
+  group_by(COD_PROVCOM) %>%
+  mutate(
+    mean_temp_excluding_0811 = median(
+      temperature[date != as.Date("2021-08-11")],
+      na.rm = TRUE
+    ),
+    temperature = if_else(
+      date == as.Date("2021-08-11"),
+      mean_temp_excluding_0811,
+      temperature
+    )
+  ) %>%
+  ungroup()
+
+est_af_week_counter = attrdl_Laplace(temp_by_area_week_counter$temperature,model_laplace[[4]],
+                                     temp_by_area_week_counter$dtot,
+                             type="af",dir="back",tot=TRUE,cen = 20, sim=FALSE, nsim = 500,
+                             ID= factor(temp_by_area_week_counter$COD_PROVCOM)) # Counterfactual af
+
+
+pdf("daily_temperature.pdf")
+tm_shape(map_temp_daily) +
+  tm_polygons(
+    col = "temperature",
+    palette = "-RdYlBu",
+    style = "cont",
+    breaks = seq(24, 34, by = 2),
+    title = "Temperature (°C)"
+  ) +
+  tm_facets(
+    by = "date_label",
+    ncol = 3
+  ) +
+  tm_layout(
+    main.title = "Daily temperature by municipality",
+    legend.outside = TRUE
+  )
+dev.off()
+
+
+
+
+# Reshape results
+result_af_week <- lapply(est_af_week, function(x){
+  q <-   as.numeric(x$af)
+  data.frame(ID = unique(x$ID), fit = q)
+})
+results_af_week <- do.call(rbind, result_af_week)  
+results_af_week$counter <- unlist(lapply(est_af_week_counter, function(x){
+  as.numeric(x$af)
+}))  
+results_af_week$diff = results_af_week$fit - results_af_week$counter
+
+# Map of the results
+map_af_week <- tuscanymap
+map_af_week$diff <- results_af_week$diff/results_af_week$fit
+map_af_week$fit <- results_af_week$fit
+
+pdf("heat_event_af.pdf")
+tm_shape(map_af_week) +
+  tm_polygons("fit", 
+              title = "af", 
+              palette = "BuRd", 
+              legend.reverse = T,
+              style = "cont", 
+              legend.show = TRUE)
+dev.off()
+
+pdf("heat_event_diff.pdf")
+tm_shape(map_af_week) +
+  tm_polygons("diff", 
+              title = "% difference af", 
+              palette = "BuRd", 
+              legend.reverse = T,
+              style = "cont", 
+              legend.show = TRUE)
+dev.off()
+
+median(results_af_week$counter, na.rm = T); median(results_af_week$fit, na.rm = T)
+
 # Additional plots
 pred_location = predRR(model_laplace[[4]], at_x_quantile, cen = 20, L = L, by = 1,
                        ID = c( "82053", "85004", "88009"), CI = T) #predict RRs at three locations
 
 
-pdf("overall_RR_two.pdf", width = 6, height = 4)
+svg("overall_RR_two.svg", height = 4, width = 6)
 library(ggplot2)
 col <- c("darkgoldenrod3", "aquamarine3","darkred")
 parold <- par(no.readonly=T)
@@ -374,7 +692,7 @@ fci(x=at_x_quantile , high = pred_location$`82053`$Qupper_all,
 plot.arg2 <- list(type = "l",col=col[2],  lwd=1.5)
 fci(x=at_x_quantile , high = pred_location$`85004`$Qupper_all,
     low = pred_location$`85004`$Qlower_all, ci.arg=list(col=alpha(col[2], 0.2)), plot.arg = plot.arg2)
-
+abline(v = 20, lty = "dashed", col = "darkgrey")
 
 legend("top", c("Palermo", "Caltanissetta"), lty=1, lwd=1.5, col=col, bty="n",
        inset=0.05, y.intersp=2, cex=0.8)
@@ -391,7 +709,7 @@ pred_location_lag = predRR(model_laplace[[4]], 28, cen = 20, L = L, by = 0.5,
 parold <- par(no.readonly=T)
 par(mar=c(4,4,1,0.5), las=1, mgp=c(2.5,1,0))
 plot(seq(0,L,by = 0.5), exp(pred_location_lag$`82053`$logpredX), type = "l", ylim=c(0.95,1.25), ylab="RR", col=col[1], lwd=1.5,
-     xlab="Temperature")
+     xlab="Days")
 lines(seq(0,L,by = 0.5), exp(pred_location_lag$`85004`$logpredX), type = "l", col = col[2], lwd = 1.5)
 
 fci <- function(x, high, low, ci.arg, plot.arg, noeff = NULL){
@@ -415,7 +733,7 @@ legend("top", c("Palermo", "Caltanissetta"), lty=1, lwd=1.5, col=col, bty="n",
 
 par(parold)
 
-dev.off()
+
 
 
 # Probability of belonging to top 10%, top 25%
@@ -427,8 +745,6 @@ n_iter <- 150
 n_cores <- 6  # adjust to your CPU cores
 cl <- makeCluster(n_cores)
 registerDoParallel(cl)
-
-L=8
 
 
 betas_typeIV = simulate_from_precision_correct(model_laplace[[4]]$Prec, nsim = 500) #Simulate from posterior
@@ -479,6 +795,5 @@ tm_shape(map_prob_long) +
               style = "cont", 
               legend.show = TRUE,
               breaks = seq(0, 1, length.out = 11) ) +
-  tm_facets(by = "type", free.scales = FALSE, ncol= 1)
+  tm_facets(by = "type", free.scales = FALSE, ncol= 2)
 dev.off()
-
