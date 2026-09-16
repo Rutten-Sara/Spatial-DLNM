@@ -31,6 +31,7 @@ The folder **functions** includes the Rcode that is needed to fit the spatially 
 | predRR_spat.R | Function to calculate the estimated RR |
 | help_functions.R | Functions called by DLNM_Laplace_spatially_structured.R and predRR_spat.R |
 | af_Laplace.R | Function to calculate attributable fraction |
+| PPP.R | Posterior predictive checks |
 
 The folder **functions Simulation** contains additional functions that are used in the simulation study. The folder contains the following files:
 | File | Description |
